@@ -83,10 +83,3 @@ def handler(event, context):
             return mysql_connector.upsert("value_sets", mappings)
     except:
         return mysql_connector.server_error("Unknown server error")
-    
-
-if __name__ == "__main__":
-    event = {"httpMethod": "GET"}
-    context = {}
-    print(handler(event, context))
-
