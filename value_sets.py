@@ -86,7 +86,7 @@ def handler(event, context):
     
 
 if __name__ == "__main__":
-    event = {"httpMethod": "GET"}
+    event = {}
     context = {}
     print(handler(event, context))
 
