@@ -47,13 +47,22 @@ def success_response(json):
 def client_error(error):
     response =  {
         "statusCode": 400,
-        "error": error
+        "headers": {},
+        "body": json.dumps({
+            "message": error
+        })
     }
     return response
 
 def server_error(error):
     response =  {
         "statusCode": 500,
-        "error": error
+        "headers": {},
+        "body": json.dumps({
+            "message": error
+        })
     }
     return response
+
+def get_username(event):
+    return event["requestContext"]["authorizer"]["claims"]["preferred_username"]
