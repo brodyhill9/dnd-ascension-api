@@ -2,28 +2,28 @@ import mysql_connector
 import json
 
 def handler(event, context):
+    q = """ 
+        select 
+            sv.value_id,
+            sv.set_value,
+            sv.value_desc,
+            sv.created_by,
+            vs.set_id,
+            vs.set_name
+        from set_values sv,
+                value_sets vs
+        where 
+            sv.set_id = vs.set_id 
+        """
+
     try:
         httpMethod = event["httpMethod"]
 
         if httpMethod == "GET":
-            q = """ 
-                select 
-                    sv.value_id,
-                    sv.set_value,
-                    sv.description,
-                    sv.created_by,
-                    vs.set_id,
-                    vs.set_name
-                from set_values sv,
-                     value_sets vs
-                where 
-                    sv.set_id = vs.set_id
-                """
-
             params = event["queryStringParameters"]
-            if params != None and "setName" in params:
+            if params != None and "set_name" in params:
                 q += " and vs.set_name = %s"
-                params = (params["setName"])
+                params = (params["set_name"])
 
             return mysql_connector.query(q, params)
         elif httpMethod == "POST":
@@ -32,14 +32,14 @@ def handler(event, context):
                     INSERT INTO set_values (
                         set_value,
                         set_id,
-                        description,
+                        value_desc,
                         created_by,
                         created_date,
                         updated_by,
                         updated_date
                     ) VALUES (
                         %s,
-                        %s,
+                        (SELECT vs.set_id FROM value_sets vs WHERE vs.set_name = %s),
                         %s,
                         %s,
                         SYSDATE(),
@@ -48,13 +48,16 @@ def handler(event, context):
                     """
                 data = json.loads(event["body"])
                 params = (
-                    data.get("setValue",""),
-                    data.get("setId",""),
-                    data.get("description",""),
+                    data.get("set_value",""),
+                    data.get("set_name",""),
+                    data.get("value_desc",""),
                     mysql_connector.get_username(event),
                     mysql_connector.get_username(event)
                 )
-                return mysql_connector.execute(sql, params)
+                mysql_connector.execute(sql, params)
+
+                q += """ and sv.value_id = LAST_INSERT_ID()"""
+                return mysql_connector.single_query(q)
             except Exception as e:
                 return mysql_connector.client_error("Invalid POST data" + str(e))
         elif httpMethod == "PUT":
@@ -62,7 +65,7 @@ def handler(event, context):
                 sql = """
                     UPDATE set_values
                     SET set_value = %s,
-                        description = %s,
+                        value_desc = %s,
                         updated_by = %s,
                         updated_date = SYSDATE()
                     WHERE value_id = %s
@@ -70,12 +73,18 @@ def handler(event, context):
 
                 data = json.loads(event["body"])
                 params = (
-                    data.get("value",""),
-                    data.get("description",""),
+                    data.get("set_value",""),
+                    data.get("value_desc",""),
                     mysql_connector.get_username(event),
-                    data.get("valueId","")
+                    data.get("value_id","")
                 )
-                return mysql_connector.execute(sql, params)
+                mysql_connector.execute(sql, params)
+
+                params = (
+                    data.get("value_id","")
+                )
+                q += """ and sv.value_id = %s"""
+                return mysql_connector.single_query(q, params)
             except:
                 return mysql_connector.client_error("Invalid PUT data")
         elif httpMethod == "DELETE":
@@ -85,10 +94,8 @@ def handler(event, context):
                     WHERE value_id = %s
                     """
 
-                data = json.loads(event["body"])
-                params = (
-                    data.get("valueId","")
-                )
+                params = event["queryStringParameters"]
+                params = (params["value_id"])
                 return mysql_connector.execute(sql, params)
             except:
                 return mysql_connector.client_error("Invalid DELETE data")

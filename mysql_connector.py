@@ -27,14 +27,24 @@ def query(sql, params=None):
         rowHeaders = [x[0] for x in cur.description]
         for row in cur:
             jsonData.append(dict(zip(rowHeaders,row)))
-            
     return success_response(json.dumps(jsonData))
 
-def execute(sql, params):
+def single_query(sql, params=None):
+    with conn.cursor() as cur:
+        cur.execute(sql, params)
+        jsonData = []
+        rowHeaders = [x[0] for x in cur.description]
+        for row in cur:
+            jsonData.append(dict(zip(rowHeaders,row)))
+    return success_response(json.dumps(next(iter(jsonData), None)))
+
+def execute(sql, params=None):
     with conn.cursor() as cur:
         cur.execute(sql, params)
     conn.commit()
-    return success_response("success")
+    return success_response(json.dumps({
+            "result": "Success"
+        }))
 
 def success_response(json):
     response =  {
@@ -65,4 +75,8 @@ def server_error(error):
     return response
 
 def get_username(event):
-    return event["requestContext"]["authorizer"]["claims"]["preferred_username"]
+    try:
+        return event["headers"]["DndUser"]
+    except:
+        return "(Guest)"
+    #return event["requestContext"]["authorizer"]["claims"]["preferred_username"]

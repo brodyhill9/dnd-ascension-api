@@ -2,34 +2,35 @@ import mysql_connector
 import json
 
 def handler(event, context):
+    q = """ 
+        select
+            spell_id,
+            spell_name,
+            spell_desc,
+            spell_level,
+            higher_level,
+            spell_range,
+            components,
+            IF(ritual, 'true', 'false') ritual,
+            duration,
+            casting_time,
+            spell_school,
+            created_by
+        from spells
+        where 1=1 
+        """
+
     try:
         httpMethod = event["httpMethod"]
 
         if httpMethod == "GET":
-            q = """ 
-                select
-                    spell_id,
-                    spell_name,
-                    spell_desc,
-                    spell_level,
-                    higher_level,
-                    spell_range,
-                    components,
-                    material,
-                    ritual,
-                    duration,
-                    casting_time,
-                    spell_school,
-                    created_by
-                from spells
-                """
-
             params = event["queryStringParameters"]
-            if params != None and "spellId" in params:
-                q += " where spell_id = %s"
-                params = (params["spellId"])
-
-            return mysql_connector.query(q, params)
+            if params != None and "spell_id" in params:
+                q += " and spell_id = %s"
+                params = (params["spell_id"])
+                return mysql_connector.single_query(q, params)
+            else:
+                return mysql_connector.query(q, params)
         elif httpMethod == "POST":
             try:
                 sql = """
@@ -40,7 +41,6 @@ def handler(event, context):
                         higher_level,
                         spell_range,
                         components,
-                        material,
                         ritual,
                         duration,
                         casting_time,
@@ -61,7 +61,6 @@ def handler(event, context):
                         %s,
                         %s,
                         %s,
-                        %s,
                         SYSDATE(),
                         %s,
                         SYSDATE());
@@ -69,21 +68,23 @@ def handler(event, context):
 
                 data = json.loads(event["body"])
                 params = (
-                    data.get("spellName",""),
-                    data.get("spellDesc",""),
-                    data.get("spellLevel",""),
-                    data.get("higherLevel",""),
-                    data.get("spellRange",""),
+                    data.get("spell_name",""),
+                    data.get("spell_desc",""),
+                    data.get("spell_level",""),
+                    data.get("higher_level",""),
+                    data.get("spell_range",""),
                     data.get("components",""),
-                    data.get("material",""),
                     data.get("ritual",""),
                     data.get("duration",""),
-                    data.get("castingTime",""),
-                    data.get("spellSchool",""),
+                    data.get("casting_time",""),
+                    data.get("spell_school",""),
                     mysql_connector.get_username(event),
                     mysql_connector.get_username(event)
                 )
-                return mysql_connector.execute(sql, params)
+                mysql_connector.execute(sql, params)
+
+                q += """ and spell_id = LAST_INSERT_ID()"""
+                return mysql_connector.single_query(q)
             except Exception as e:
                 return mysql_connector.client_error("Invalid POST data" + str(e))
         elif httpMethod == "PUT":
@@ -96,33 +97,37 @@ def handler(event, context):
                         higher_level = %s,
                         spell_range = %s,
                         components = %s,
-                        material = %s,
                         ritual = %s,
                         duration = %s,
                         casting_time = %s,
                         spell_school = %s,
                         updated_by = %s,
                         updated_date = SYSDATE()
-                    WHERE set_id = %s
+                    WHERE spell_id = %s
                     """
 
                 data = json.loads(event["body"])
                 params = (
-                    data.get("spellName",""),
-                    data.get("spellDesc",""),
-                    data.get("spellLevel",""),
-                    data.get("higherLevel",""),
-                    data.get("spellRange",""),
+                    data.get("spell_name",""),
+                    data.get("spell_desc",""),
+                    data.get("spell_level",""),
+                    data.get("higher_level",""),
+                    data.get("spell_range",""),
                     data.get("components",""),
-                    data.get("material",""),
                     data.get("ritual",""),
                     data.get("duration",""),
-                    data.get("castingTime",""),
-                    data.get("spellSchool",""),
+                    data.get("casting_time",""),
+                    data.get("spell_school",""),
                     mysql_connector.get_username(event),
-                    data.get("setId","")
+                    data.get("spell_id","")
                 )
-                return mysql_connector.execute(sql, params)
+                mysql_connector.execute(sql, params)
+
+                params = (
+                    data.get("spell_id","")
+                )
+                q += """ and spell_id = %s"""
+                return mysql_connector.single_query(q)
             except:
                 return mysql_connector.client_error("Invalid PUT data")
         elif httpMethod == "DELETE":
@@ -132,10 +137,8 @@ def handler(event, context):
                     WHERE spell_id = %s
                     """
 
-                data = json.loads(event["body"])
-                params = (
-                    data.get("spellId","")
-                )
+                params = event["queryStringParameters"]
+                params = (params["spell_id"])
                 return mysql_connector.execute(sql, params)
             except:
                 return mysql_connector.client_error("Invalid DELETE data")

@@ -7,7 +7,7 @@ role = lambda_config.role
 functions = lambda_config.functions
 
 def zipDir(zipObj, dirName):
-    for folderName, subfolders, filenames in os.walk(dirName):
+    for folderName, _, filenames in os.walk(dirName):
        for filename in filenames:
            filePath = os.path.join(folderName, filename)
            zipObj.write(filePath)

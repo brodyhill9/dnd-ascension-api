@@ -10,15 +10,16 @@ def handler(event, context):
                 select 
                     set_id,
                     set_name,
-                    description,
+                    set_desc,
                     created_by
                 from value_sets
                 """
 
             params = event["queryStringParameters"]
-            if params != None and "setName" in params:
+            if params != None and "set_name" in params:
                 q += " where set_name = %s"
-                params = (params["setName"])
+                params = (params["set_name"])
+                return mysql_connector.single_query(q, params)
 
             return mysql_connector.query(q, params)
         elif httpMethod == "POST":
@@ -26,7 +27,7 @@ def handler(event, context):
                 sql = """
                     INSERT INTO value_sets (
                         set_name,
-                        description,
+                        set_desc,
                         created_by,
                         created_date,
                         updated_by,
@@ -42,8 +43,8 @@ def handler(event, context):
 
                 data = json.loads(event["body"])
                 params = (
-                    data.get("setName",""),
-                    data.get("description",""),
+                    data.get("set_name",""),
+                    data.get("set_desc",""),
                     mysql_connector.get_username(event),
                     mysql_connector.get_username(event)
                 )
@@ -55,7 +56,7 @@ def handler(event, context):
                 sql = """
                     UPDATE value_sets
                     SET set_name = %s,
-                        description = %s,
+                        set_desc = %s,
                         updated_by = %s,
                         updated_date = SYSDATE()
                     WHERE set_id = %s
@@ -63,10 +64,10 @@ def handler(event, context):
 
                 data = json.loads(event["body"])
                 params = (
-                    data.get("setName",""),
-                    data.get("description",""),
+                    data.get("set_name",""),
+                    data.get("set_desc",""),
                     mysql_connector.get_username(event),
-                    data.get("setId","")
+                    data.get("set_id","")
                 )
                 return mysql_connector.execute(sql, params)
             except:
@@ -80,7 +81,7 @@ def handler(event, context):
 
                 data = json.loads(event["body"])
                 params = (
-                    data.get("setId","")
+                    data.get("set_id","")
                 )
                 return mysql_connector.execute(sql, params)
             except:
