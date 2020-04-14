@@ -27,32 +27,58 @@ def query(sql, params=None):
         rowHeaders = [x[0] for x in cur.description]
         for row in cur:
             jsonData.append(dict(zip(rowHeaders,row)))
-    return success_response(json.dumps(jsonData))
+    return success_response(json.dumps(query_json(sql, params)))
 
-def single_query(sql, params=None):
+def query_json(sql, params=None):
     with conn.cursor() as cur:
         cur.execute(sql, params)
         jsonData = []
         rowHeaders = [x[0] for x in cur.description]
         for row in cur:
             jsonData.append(dict(zip(rowHeaders,row)))
-    return success_response(json.dumps(next(iter(jsonData), None)))
+    return jsonData
+
+def single_query(sql, params=None):
+    return success_response(json.dumps(single_query_json(sql, params)))
+
+def single_query_json(sql, params=None):
+    with conn.cursor() as cur:
+        cur.execute(sql, params)
+        jsonData = []
+        rowHeaders = [x[0] for x in cur.description]
+        for row in cur:
+            jsonData.append(dict(zip(rowHeaders,row)))
+    return next(iter(jsonData), None)
+
+def get_last_insert_id():
+    with conn.cursor() as cur:
+        cur.execute("select LAST_INSERT_ID() id from dual")
+        jsonData = []
+        rowHeaders = [x[0] for x in cur.description]
+        for row in cur:
+            jsonData.append(dict(zip(rowHeaders,row)))
+    return next(iter(jsonData), None)["id"]
 
 def execute(sql, params=None):
     with conn.cursor() as cur:
         cur.execute(sql, params)
-    conn.commit()
-    return success_response(json.dumps({
-            "result": "Success"
-        }))
+    return success_response_string()
 
-def success_response(json):
+def execute_no_return(sql, params=None):
+    with conn.cursor() as cur:
+        cur.execute(sql, params)
+
+def success_response(jsonString):
     response =  {
         "statusCode": 200,
         "headers": {},
-        "body": json
+        "body": jsonString
     }
+    conn.commit()
     return response
+
+def success_response_string(message="Success"):
+    return success_response(json.dumps({"result": message}))
 
 def client_error(error):
     response =  {
@@ -62,6 +88,7 @@ def client_error(error):
             "message": error
         })
     }
+    conn.rollback()
     return response
 
 def server_error(error):
@@ -72,6 +99,7 @@ def server_error(error):
             "message": error
         })
     }
+    conn.rollback()
     return response
 
 def get_username(event):

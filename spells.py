@@ -74,7 +74,7 @@ def handler(event, context):
                     data.get("higher_level",""),
                     data.get("spell_range",""),
                     data.get("components",""),
-                    data.get("ritual",""),
+                    (1 if str(data.get("ritual","")).lower() == "true" else 0),
                     data.get("duration",""),
                     data.get("casting_time",""),
                     data.get("spell_school",""),
@@ -85,8 +85,8 @@ def handler(event, context):
 
                 q += """ and spell_id = LAST_INSERT_ID()"""
                 return mysql_connector.single_query(q)
-            except Exception as e:
-                return mysql_connector.client_error("Invalid POST data" + str(e))
+            except:
+                return mysql_connector.client_error("Invalid POST data")
         elif httpMethod == "PUT":
             try:
                 sql = """
@@ -114,7 +114,7 @@ def handler(event, context):
                     data.get("higher_level",""),
                     data.get("spell_range",""),
                     data.get("components",""),
-                    data.get("ritual",""),
+                    (1 if str(data.get("ritual","")).lower() == "true" else 0),
                     data.get("duration",""),
                     data.get("casting_time",""),
                     data.get("spell_school",""),
@@ -127,8 +127,8 @@ def handler(event, context):
                     data.get("spell_id","")
                 )
                 q += """ and spell_id = %s"""
-                return mysql_connector.single_query(q)
-            except:
+                return mysql_connector.single_query(q, params)
+            except Exception as e:
                 return mysql_connector.client_error("Invalid PUT data")
         elif httpMethod == "DELETE":
             try:
