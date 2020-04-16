@@ -128,7 +128,7 @@ def handler(event, context):
                 )
                 q += """ and spell_id = %s"""
                 return mysql_connector.single_query(q, params)
-            except Exception as e:
+            except:
                 return mysql_connector.client_error("Invalid PUT data")
         elif httpMethod == "DELETE":
             try:
