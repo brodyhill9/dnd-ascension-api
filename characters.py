@@ -46,8 +46,11 @@ def get_char(char_id=None):
         qChar = q + " and char_id = %s"
         params = char_id
         char = mysql_connector.single_query_json(qChar, params)
-        char['race_traits'] = get_race_traits(char["race_id"])
-        char['class_traits'] = get_class_traits(char["class_id"])
+        char["race_traits"] = get_race_traits(char["race_id"])
+        char["class_traits"] = get_class_traits(char["class_id"])
+        char["armor"] = get_char_armor(char_id)
+        char["spells"] = get_char_spells(char_id)
+        char["weapons"] = get_char_weapons(char_id)
         return char
     else:
         chars = [get_char(c["char_id"]) for c in mysql_connector.query_json(q)]
@@ -84,6 +87,70 @@ def get_class_traits(class_id):
         order by 5, 3
         """
     params = class_id
+    return mysql_connector.query_json(q, params)
+def get_char_armor(char_id):
+    q = """ 
+        select
+            a.armor_id,
+            a.armor_name,
+            a.armor_desc,
+            a.armor_type,
+            a.cost,
+            a.armor_class,
+			a.strength,
+            IF(a.stealth_dis, 'true', 'false') stealth_dis,
+            a.weight,
+            a.created_by
+        from armor a,
+			 char_assets ca
+		where ca.asset_id = a.armor_id
+        and asset_type = 'Armor'
+        and ca.char_id = %s
+        """
+    params = char_id
+    return mysql_connector.query_json(q, params)
+def get_char_spells(char_id):
+    q = """ 
+        select
+            s.spell_id,
+            s.spell_name,
+            s.spell_desc,
+            s.spell_level,
+            s.higher_level,
+            s.spell_range,
+            s.components,
+            IF(s.ritual, 'true', 'false') ritual,
+            s.duration,
+            s.casting_time,
+            s.spell_school,
+            s.created_by
+        from spells s,
+			 char_assets ca
+		where ca.asset_id = s.spell_id
+        and asset_type = 'Spells'
+        and ca.char_id = %s
+        """
+    params = char_id
+    return mysql_connector.query_json(q, params)
+def get_char_weapons(char_id):
+    q = """ 
+        select
+            w.weapon_id,
+            w.weapon_name,
+            w.weapon_desc,
+            w.weapon_type,
+            w.cost,
+            w.damage,
+            w.weight,
+            w.weapon_props,
+            w.created_by
+        from weapons w,
+			 char_assets ca
+		where ca.asset_id = w.weapon_id
+        and asset_type = 'Weapons'
+        and ca.char_id = %s
+        """
+    params = char_id
     return mysql_connector.query_json(q, params)
 
 def create_char(event, data):
@@ -190,6 +257,49 @@ def delete_char(char_id):
     params = char_id
     mysql_connector.execute_no_return(sql, params)
 
+def add_asset(event, data):
+    sql = """
+        INSERT INTO char_assets (
+            char_id,
+            asset_id,
+            asset_type,
+            created_by,
+            created_date,
+            updated_by,
+            updated_date
+        ) VALUES (
+            %s,
+            %s,
+            %s,
+            %s,
+            SYSDATE(),
+            %s,
+            SYSDATE());
+        """
+
+    params = (
+        data.get("char_id",""),
+        data.get("asset_id",""),
+        data.get("asset_type",""),
+        mysql_connector.get_username(event),
+        mysql_connector.get_username(event)
+    )
+    return mysql_connector.execute(sql, params)
+def remove_asset(data):
+    sql = """
+        DELETE FROM char_assets
+        WHERE char_id = %s
+        and asset_id = %s
+        and asset_type = %s
+        LIMIT 1;
+        """
+    params = (
+        data.get("char_id",""),
+        data.get("asset_id",""),
+        data.get("asset_type","")
+    )
+    return mysql_connector.execute(sql, params)
+
 def handler(event, context):
     try:
         httpMethod = event["httpMethod"]
@@ -203,8 +313,11 @@ def handler(event, context):
         elif httpMethod == "POST":
             try:
                 data = json.loads(event["body"])
-                char_id = create_char(event, data)
-                return mysql_connector.success_response(json.dumps(get_char(char_id)))
+                if 'asset_id' in data:
+                    return add_asset(event, data)
+                else:
+                    char_id = create_char(event, data)
+                    return mysql_connector.success_response(json.dumps(get_char(char_id)))
             except Exception as e:
                 return mysql_connector.client_error("Invalid POST data" + str(e))
         elif httpMethod == "PUT":
@@ -217,8 +330,11 @@ def handler(event, context):
         elif httpMethod == "DELETE":
             try:
                 params = event["queryStringParameters"]
-                delete_char(params["char_id"])
-                return mysql_connector.success_response_string()
+                if 'asset_id' in params:
+                    return remove_asset(params)
+                else:
+                    delete_char(params["char_id"])
+                    return mysql_connector.success_response_string()
             except:
                 return mysql_connector.client_error("Invalid DELETE data")
         else:
