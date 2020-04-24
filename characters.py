@@ -1,6 +1,8 @@
 import mysql_connector
 import json
 
+ev = dict()
+
 def get_char(char_id=None):
     q = """ 
         select
@@ -37,23 +39,35 @@ def get_char(char_id=None):
              LEFT OUTER JOIN races ra2
              ON ra.parent_id = ra2.race_id,
              set_values ba
+             {}
         where ch.class_id = cl.class_id
 		and	  ch.race_id = ra.race_id
         and   ch.background_id = ba.value_id
         """
         
+    params = ev["queryStringParameters"]
     if char_id != None:
-        qChar = q + " and char_id = %s"
+        q = q.format("")
+        q = q + " and ch.char_id = %s"
         params = char_id
-        char = mysql_connector.single_query_json(qChar, params)
+        char = mysql_connector.single_query_json(q, params)
         char["race_traits"] = get_race_traits(char["race_id"])
         char["class_traits"] = get_class_traits(char["class_id"])
         char["armor"] = get_char_armor(char_id)
         char["spells"] = get_char_spells(char_id)
         char["weapons"] = get_char_weapons(char_id)
         return char
+    elif params != None and "camp_id" in params:
+        q = q.format(", campaign_chars cc ")
+        q = q + "and ch.char_id = cc.char_id and cc.camp_id = %s"
+        params = params["camp_id"]
+        chars = [get_char(c["char_id"]) for c in mysql_connector.query_json(q, params)]
+        return chars
     else:
-        chars = [get_char(c["char_id"]) for c in mysql_connector.query_json(q)]
+        q = q.format("")
+        q = q + " and ch.created_by = %s"
+        params = mysql_connector.get_username(ev)
+        chars = [get_char(c["char_id"]) for c in mysql_connector.query_json(q, params)]
         return chars
 def get_race_traits(race_id):
     q = """ 
@@ -300,8 +314,47 @@ def remove_asset(data):
     )
     return mysql_connector.execute(sql, params)
 
+def add_campaign(event, data):
+    sql = """
+        INSERT IGNORE INTO campaign_chars (
+            camp_id,
+            char_id,
+            created_by,
+            created_date,
+            updated_by,
+            updated_date
+        ) VALUES (
+            %s,
+            %s,
+            %s,
+            SYSDATE(),
+            %s,
+            SYSDATE());
+        """
+
+    params = (
+        data.get("camp_id",""),
+        data.get("char_id",""),
+        mysql_connector.get_username(event),
+        mysql_connector.get_username(event)
+    )
+    return mysql_connector.execute(sql, params)
+def remove_campaign(data):
+    sql = """
+        DELETE FROM campaign_chars
+        WHERE camp_id = %s
+        and char_id = %s
+        """
+    params = (
+        data.get("camp_id",""),
+        data.get("char_id","")
+    )
+    return mysql_connector.execute(sql, params)
+
 def handler(event, context):
     try:
+        global ev
+        ev = event
         httpMethod = event["httpMethod"]
 
         if httpMethod == "GET":
@@ -315,6 +368,8 @@ def handler(event, context):
                 data = json.loads(event["body"])
                 if 'asset_id' in data:
                     return add_asset(event, data)
+                elif 'camp_id' in data:
+                    return add_campaign(event, data)
                 else:
                     char_id = create_char(event, data)
                     return mysql_connector.success_response(json.dumps(get_char(char_id)))
@@ -332,6 +387,8 @@ def handler(event, context):
                 params = event["queryStringParameters"]
                 if 'asset_id' in params:
                     return remove_asset(params)
+                elif 'camp_id' in params:
+                    return remove_campaign(params)
                 else:
                     delete_char(params["char_id"])
                     return mysql_connector.success_response_string()
@@ -339,6 +396,6 @@ def handler(event, context):
                 return mysql_connector.client_error("Invalid DELETE data")
         else:
             return mysql_connector.client_error("Invalid HTTP Method")
-    except:
-        return mysql_connector.server_error("Unknown server error")
+    except Exception as e:
+        return mysql_connector.server_error("Unknown server error: " + str(e))
         
